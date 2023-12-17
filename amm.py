@@ -109,8 +109,8 @@ class amm():
         x = y * (1 - self.phi) * self.Rx / (self.Ry + (1 - self.phi) * y)
 
         if not quote:
-            self.Rx += x
-            self.Ry -= y
+            self.Rx -= x
+            self.Ry += y
 
         return x
 

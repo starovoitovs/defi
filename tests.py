@@ -56,6 +56,34 @@ class TestAmm(unittest.TestCase):
         self.assertTrue(np.allclose(pools.l, np.array(np.array([0., 0., 0.])), rtol=1e-2))
         self.assertTrue(np.allclose(pools.L, np.array(np.array([316.23, 316.23, 316.23])), rtol=1e-2))
 
+    def test_simulation(self):
+        """ Fix the seed """
+        np.random.seed(999983)
+
+        """ Initialise the pools """
+        Rx0 = np.array([100, 100, 100], float)
+        Ry0 = np.array([1000, 1000, 1000], float)
+        phi = np.array([0.003, 0.003, 0.003], float)
+
+        pools = amm(Rx=Rx0, Ry=Ry0, phi=phi)
+
+        """ Swap and mint """
+        xs_0 = [10, 10, 10]
+        l = pools.swap_and_mint(xs_0)
+
+        """ Simulate 1000 paths of trading in the pools """
+        batch_size = 1
+        T = 60
+        kappa = np.array([0.6, 0.5, 1, 2])
+        p = np.array([0.85, 0.3, 0.2, 0.3])
+        sigma = np.array([0.05, 0.01, 0.025, 0.05])
+
+        end_pools, Rx_t, Ry_t, v_t, event_type_t, event_direction_t = \
+            pools.simulate(kappa=kappa, p=p, sigma=sigma, T=T, batch_size=batch_size)
+
+        self.assertTrue(np.allclose(end_pools[0].Rx, np.array([96.49, 118.37, 121.08]), rtol=1e-2))
+        self.assertTrue(np.allclose(end_pools[0].Ry, np.array([1142.27, 931.52, 912.31]), rtol=1e-2))
+
 
 if __name__ == '__main__':
     unittest.main()

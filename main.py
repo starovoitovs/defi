@@ -1,23 +1,17 @@
-# -*- coding: utf-8 -*-
+import cvxpy as cp
+from IPython.core.display_functions import display
+from matplotlib import pyplot as plt
 
 from amm import amm
 import numpy as np
-from scipy.stats import norm
-import riskfolio as rp
-import pandas as pd
-
-import matplotlib.pyplot as plt
-# plt.style.use('paper.mplstyle')
 
 import seaborn as sns
 
+from utils import plot_hist, plot_2d
+
 sns.set_theme(style="ticks")
 
-import statsmodels.api as sm
-import matplotlib.ticker as mtick
-import pickle
 import pandas as pd
-from tqdm import tqdm
 
 if __name__ == '__main__':
 
@@ -47,30 +41,65 @@ if __name__ == '__main__':
     log_ret = np.log(x_T)
     Y = pd.DataFrame(log_ret)
 
-    # Building the portfolio object
-    port = rp.Portfolio(returns=Y)
+    # 1d marginals on top of each other
 
-    # Calculating optimal portfolio
+    for i in range(log_ret.shape[1]):
+        sns.kdeplot(log_ret[:, i], label=i)
 
-    # Select method and estimate input parameters:
+    plt.xlim((-0.2, 0.2))
+    plt.legend()
+    plt.show()
 
-    method_mu = 'hist'  # Method to estimate expected returns based on historical data.
-    method_cov = 'hist'  # Method to estimate covariance matrix based on historical data.
+    # 2d plot of returns
+    plot_2d(log_ret)
 
-    port.assets_stats(method_mu=method_mu, method_cov=method_cov, d=0.94)
+    # pseudocode:
+    # reference file: riskfolio/src/Portfolio.py
 
-    # Estimate optimal portfolio:
+    returns = log_ret
+    alpha = 0.05
 
-    model = 'Classic'  # Could be Classic (historical), BL (Black Litterman) or FM (Factor Model)
-    rm = 'CVaR'  # Risk measure used, this time will be variance
-    obj = 'MinRisk'  # Objective function, could be MinRisk, MaxRet, Utility or Sharpe
-    hist = True  # Use historical scenarios for risk measures that depend on scenarios
-    rf = 0  # Risk free rate
-    l = 0  # Risk aversion factor, only useful when obj is 'Utility'
+    n_returns, n_assets = returns.shape
 
-    weights = port.optimization(model=model, rm=rm, obj=obj, rf=rf, l=l, hist=hist)
+    weights = cp.Variable((n_assets,))
+    X = returns @ weights
+
+    Z = cp.Variable((n_returns,))
+    var = cp.Variable((1,))
+    cvar = var + 1 / (alpha * n_returns) * cp.sum(Z)
+
+    constraints = [cp.sum(weights) == 1., weights <= 1., weights * 1000 >= 0]
+
+    # CVaR constraints
+    constraints += [Z * 1000 >= 0, Z * 1000 >= -X * 1000 - var * 1000]
+
+    # lower bound: average of emp cdf:
+    # might not be a valid constraint!
+    emp_cdf_005 = np.mean(log_ret >= 0.05, axis=0)
+    constraints += [emp_cdf_005 @ weights * 1000 >= 0.8 * 1000]
+
+    # naive idea for the return constraint:
+    # constraints += [cp.sum(returns @ weights >= 0.05) >= 0.7 * n_returns]
+
+    objective = cp.Minimize(cvar * 1000)
+
+    # possible solvers: "ECOS", "SCS", "OSQP", "CVXOPT"
+    prob = cp.Problem(objective, constraints)
+    result = prob.solve(solver="ECOS")
+
+    print(f"Objective: {result}")
+
+    portfolio_weights = weights.value
+    portfolio_returns = returns @ portfolio_weights
 
     print("Portfolio weights:")
+    display(pd.DataFrame(portfolio_weights).T)
+    plot_hist(portfolio_returns)
 
-    portfolio_returns = log_ret @ weights
-    portfolio_returns = portfolio_returns.to_numpy().T[0]
+    # normal approximation
+    df = pd.DataFrame(log_ret)
+    mean = pd.DataFrame(df.mean(axis=0)).T
+    display(mean.style.background_gradient(cmap='coolwarm', axis=None))
+    corr = df.corr()
+    display(corr.style.background_gradient(cmap='coolwarm', axis=None))
+    mean_assets, cov_assets = df.mean().to_numpy(), df.cov().to_numpy()

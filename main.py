@@ -58,7 +58,8 @@ if __name__ == '__main__':
 
     returns = log_ret
     alpha = 0.05
-    zeta = 0.7
+    zeta = 0.05
+    p = 0.7
 
     n_returns, n_assets = returns.shape
 
@@ -77,12 +78,12 @@ if __name__ == '__main__':
     # # lower bound: average of emp cdf:
     # # might not be a valid constraint!
     # emp_cdf_005 = np.mean(log_ret >= 0.05, axis=0)
-    # constraints += [emp_cdf_005 @ weights * 1000 >= zeta * 1000]
+    # constraints += [emp_cdf_005 @ weights * 1000 >= p * 1000]
 
     # normal approximation with SOC constraint
     mean, cov = log_ret.mean(axis=0), np.cov(log_ret.T)
     sqrtcov = sqrtm(cov)
-    constraints += [cp.SOC((-0.05 + mean @ weights) / norm.ppf(zeta), sqrtcov @ weights)]
+    constraints += [cp.SOC((-zeta + mean @ weights) / norm.ppf(p), sqrtcov @ weights)]
 
     objective = cp.Minimize(cvar * 1000)
 

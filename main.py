@@ -1,11 +1,11 @@
 import cvxpy as cp
 from IPython.core.display_functions import display
 from matplotlib import pyplot as plt
-
 from amm import amm
 import numpy as np
-
+from scipy.linalg import sqrtm
 import seaborn as sns
+from scipy.stats import norm
 
 from utils import plot_hist, plot_2d
 
@@ -20,7 +20,7 @@ if __name__ == '__main__':
     T = 60
     Rx = 100.
     Ry = 1000.
-    batch_size = 32
+    batch_size = 1_000
 
     kappa = [0.25, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
     sigma = [1, 0.3, 0.5, 1.5, 1.75, 2, 2.25]
@@ -58,6 +58,7 @@ if __name__ == '__main__':
 
     returns = log_ret
     alpha = 0.05
+    zeta = 0.7
 
     n_returns, n_assets = returns.shape
 
@@ -73,19 +74,21 @@ if __name__ == '__main__':
     # CVaR constraints
     constraints += [Z * 1000 >= 0, Z * 1000 >= -X * 1000 - var * 1000]
 
-    # lower bound: average of emp cdf:
-    # might not be a valid constraint!
-    emp_cdf_005 = np.mean(log_ret >= 0.05, axis=0)
-    constraints += [emp_cdf_005 @ weights * 1000 >= 0.8 * 1000]
+    # # lower bound: average of emp cdf:
+    # # might not be a valid constraint!
+    # emp_cdf_005 = np.mean(log_ret >= 0.05, axis=0)
+    # constraints += [emp_cdf_005 @ weights * 1000 >= zeta * 1000]
 
-    # naive idea for the return constraint:
-    # constraints += [cp.sum(returns @ weights >= 0.05) >= 0.7 * n_returns]
+    # normal approximation with SOC constraint
+    mean, cov = log_ret.mean(axis=0), np.cov(log_ret.T)
+    sqrtcov = sqrtm(cov)
+    constraints += [cp.SOC((-0.05 + mean @ weights) / norm.ppf(zeta), sqrtcov @ weights)]
 
     objective = cp.Minimize(cvar * 1000)
 
     # possible solvers: "ECOS", "SCS", "OSQP", "CVXOPT"
     prob = cp.Problem(objective, constraints)
-    result = prob.solve(solver="ECOS")
+    result = prob.solve(solver="SCS")
 
     print(f"Objective: {result}")
 
@@ -95,11 +98,3 @@ if __name__ == '__main__':
     print("Portfolio weights:")
     display(pd.DataFrame(portfolio_weights).T)
     plot_hist(portfolio_returns)
-
-    # normal approximation
-    df = pd.DataFrame(log_ret)
-    mean = pd.DataFrame(df.mean(axis=0)).T
-    display(mean.style.background_gradient(cmap='coolwarm', axis=None))
-    corr = df.corr()
-    display(corr.style.background_gradient(cmap='coolwarm', axis=None))
-    mean_assets, cov_assets = df.mean().to_numpy(), df.cov().to_numpy()

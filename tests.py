@@ -1,5 +1,5 @@
 import unittest
-from amm import amm
+from defi.amm import amm
 import numpy as np
 import matplotlib.pyplot as plt
 import statsmodels.api as sm

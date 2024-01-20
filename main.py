@@ -1,101 +1,181 @@
-import cvxpy as cp
-from IPython.core.display_functions import display
-from matplotlib import pyplot as plt
-from amm import amm
+import json
+import logging
+import os
+import sys
+from datetime import datetime
 import numpy as np
-from scipy.linalg import sqrtm
 import seaborn as sns
-from scipy.stats import norm
+from matplotlib import pyplot as plt
 
-from utils import plot_hist, plot_2d
+from defi.algorithms import gradient_descent, cvx
+from defi.returns import generate_returns
+from defi.utils import get_var_cvar, plot_metric
+from params import params
 
 sns.set_theme(style="ticks")
 
-import pandas as pd
+additional_params = {
+    # learning rate of the gradient descnet
+    'learning_rate_gd': 1e-2,
+    # number of iterations for gradient descent
+    'N_iterations_gd': 2000,
+    # loss weights in gradient descent
+    'loss_weights': [1e3, 1., 1., 1.],
+    # number of iterations in market impact model
+    'N_iterations_mi': 10,
+}
 
-if __name__ == '__main__':
 
-    # Generate returns
+def optimize(returns, params):
+    algorithms = []
 
-    T = 60
-    Rx = 100.
-    Ry = 1000.
-    batch_size = 1_000
+    # unconstrained, for demostration purposes
+    algorithms += [{'func': cvx, 'kwargs': {'mode': 0}}]
 
-    kappa = [0.25, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
-    sigma = [1, 0.3, 0.5, 1.5, 1.75, 2, 2.25]
-    p = [0.35, 0.3, 0.34, 0.33, 0.32, 0.31, 0.3]
-    phi = np.repeat(0.03, 7)
-
-    ''' Initial reserves '''
-    Rx0 = np.repeat(Rx, len(kappa))
-    Ry0 = np.repeat(Ry, len(kappa))
-
-    pools = amm(Rx=Rx0, Ry=Ry0, phi=phi)
-
-    xs_0 = np.repeat(1., len(kappa))
-    l = pools.swap_and_mint(xs_0)
-    end_pools, Rx_t, Ry_t, v_t, event_type_t, event_direction_t = pools.simulate(kappa, p, sigma, T=T, batch_size=batch_size)
-
-    x_T = np.array([pool.burn_and_swap(l) for pool in end_pools])
-    log_ret = np.log(x_T)
-    Y = pd.DataFrame(log_ret)
-
-    # 1d marginals on top of each other
-
-    for i in range(log_ret.shape[1]):
-        sns.kdeplot(log_ret[:, i], label=i)
-
-    plt.xlim((-0.2, 0.2))
-    plt.legend()
-    plt.show()
-
-    # 2d plot of returns
-    plot_2d(log_ret)
-
-    # pseudocode:
-    # reference file: riskfolio/src/Portfolio.py
-
-    returns = log_ret
-    alpha = 0.05
-    zeta = 0.05
-    p = 0.7
-
-    n_returns, n_assets = returns.shape
-
-    weights = cp.Variable((n_assets,))
-    X = returns @ weights
-
-    Z = cp.Variable((n_returns,))
-    var = cp.Variable((1,))
-    cvar = var + 1 / (alpha * n_returns) * cp.sum(Z)
-
-    constraints = [cp.sum(weights) == 1., weights <= 1., weights * 1000 >= 0]
-
-    # CVaR constraints
-    constraints += [Z * 1000 >= 0, Z * 1000 >= -X * 1000 - var * 1000]
-
-    # # lower bound: average of emp cdf:
-    # # might not be a valid constraint!
-    # emp_cdf_005 = np.mean(log_ret >= 0.05, axis=0)
-    # constraints += [emp_cdf_005 @ weights * 1000 >= p * 1000]
+    # lower bound: average of emp cdf: - might not be a valid constraint! unless VaR subadditive
+    algorithms += [{'func': cvx, 'kwargs': {'mode': 1}}]
 
     # normal approximation with SOC constraint
-    mean, cov = log_ret.mean(axis=0), np.cov(log_ret.T)
-    sqrtcov = sqrtm(cov)
-    constraints += [cp.SOC((-zeta + mean @ weights) / norm.ppf(p), sqrtcov @ weights)]
+    algorithms += [{'func': cvx, 'kwargs': {'mode': 2}}]
 
-    objective = cp.Minimize(cvar * 1000)
+    # gradient descent with backprop
+    algorithms += [{'func': gradient_descent, 'kwargs': {}}]
 
-    # possible solvers: "ECOS", "SCS", "OSQP", "CVXOPT"
-    prob = cp.Problem(objective, constraints)
-    result = prob.solve(solver="SCS")
+    N_metrics = 2
 
-    print(f"Objective: {result}")
+    results_weights = np.full((len(algorithms), params['N_pools']), np.nan)
+    results_metrics = np.full((len(algorithms), N_metrics), np.nan)
 
-    portfolio_weights = weights.value
-    portfolio_returns = returns @ portfolio_weights
+    N_completed = 0
 
-    print("Portfolio weights:")
-    display(pd.DataFrame(portfolio_weights).T)
-    plot_hist(portfolio_returns)
+    for j, algorithm in enumerate(algorithms):
+
+        try:
+
+            func, kwargs = algorithm['func'], algorithm['kwargs']
+
+            portfolio_weights, *_ = func(returns, params, **kwargs)
+
+            # need this, because zero submission into pools is not allowed
+            eps = 1e-8
+            portfolio_weights = eps + portfolio_weights
+            portfolio_weights /= np.sum(portfolio_weights)
+
+            # compute returns and metrics
+            portfolio_returns = returns @ portfolio_weights
+            var, cvar = get_var_cvar(portfolio_returns, params['alpha'])
+            q_out = np.mean(portfolio_returns >= params['zeta'])
+
+            results_weights[j, :] = portfolio_weights
+            results_metrics[j, 0] = cvar
+            results_metrics[j, 1] = q_out
+
+            N_completed += 1
+
+        except Exception as e:
+            logging.info(f"Algorithm {j} failed: {e}")
+            continue
+
+    return results_weights, results_metrics, N_completed
+
+
+def iterate(params, diffs, update_returns=False):
+    # always start with uniformly distributed portfolio
+    initial_weights = np.repeat(1., params['N_pools']) / params['N_pools']
+    returns = generate_returns(params, initial_weights)
+
+    N_algorithms = 4
+    N_metrics = 2
+
+    all_weights = np.full((len(diffs), N_algorithms, params['N_pools']), np.nan)
+    all_metrics = np.full((len(diffs), N_algorithms, N_metrics), np.nan)
+
+    for i, diff in enumerate(diffs):
+        results_weights, results_metrics, N_completed = optimize(returns, {**params, **diff})
+        all_weights[i, :, :] = results_weights
+        all_metrics[i, :, :] = results_metrics
+
+        # if failed for all constraints apart from unconstrained, early stoppage
+        if N_completed <= 1:
+            break
+
+        # if update_returns=True, generate new returns with new weights for the next iteration
+        if update_returns:
+
+            # select weights where the algorithms has finished, constraint is satisfied and CVaR is best
+            arr = np.where(results_metrics[:, 1] >= params['q'], results_metrics[:, 0], -np.inf)
+
+            # if no algorithm satisfies the constraint, break
+            if np.all(arr == -np.inf):
+                break
+
+            idx = np.argmax(arr)
+            best_weights = results_weights[idx]
+            returns = generate_returns(params, best_weights)
+
+    return all_weights, all_metrics
+
+
+if __name__ == '__main__':
+    PARENT_DIRECTORY = f"_output/runs"
+    RUN_DIRECTORY = datetime.now().strftime("%Y%d%m_%H%M%S")
+    OUTPUT_DIRECTORY = os.path.join(PARENT_DIRECTORY, RUN_DIRECTORY)
+
+    os.makedirs(OUTPUT_DIRECTORY, exist_ok=True)
+
+    # setup logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(os.path.join(OUTPUT_DIRECTORY, 'log.log')),
+            logging.StreamHandler(sys.stdout),
+        ]
+    )
+
+    sys.stdout = logging.StreamHandler(sys.stdout)
+
+    # merge original parameters and additional parameters
+    params = {**params, **additional_params}
+
+    # convert lists to ndarray
+    params = {key: np.array(value) if isinstance(value, list) else value for key, value in params.items()}
+
+    # dump params file
+    with open(os.path.join(OUTPUT_DIRECTORY, 'params.json'), 'w') as f:
+        # convert ndarray to lists
+        params_json = {key: value.tolist() if isinstance(value, np.ndarray) else value for key, value in params.items()}
+        json.dump(params_json, f, indent=4)
+
+    # # optimization test for various values of q
+    # qs = np.linspace(0.51, 0.71, 11)
+    # all_weights, all_metrics = iterate(params, [{'q': q} for q in qs])
+    #
+    # # plot
+    # fig, ax = plt.subplots(ncols=3, figsize=(18, 4))
+    # plot_metric(ax[0], qs, all_weights[:, :, 0], label='q', title='Weight of asset0')
+    # plot_metric(ax[1], qs, all_metrics[:, :, 0], label='q', title='Portfolio CVaR')
+    # plot_metric(ax[2], qs, all_metrics[:, :, 1], label='q', title='$P(r \geq \zeta)$')
+    #
+    # # plot an extra line to visualize the constraint
+    # xmin, xmax = ax[2].get_xlim()
+    # qs_plot = np.linspace(xmin, xmax, 101)
+    # ax[2].plot(qs_plot, qs_plot, ls='--')
+    #
+    # fig.savefig(os.path.join(OUTPUT_DIRECTORY, 'optimization_metrics.pdf'))
+
+    # market impact iteration
+    iterations = np.arange(params['N_iterations_mi'])
+    all_weights, all_metrics = iterate(params, [{} for _ in iterations], update_returns=True)
+
+    # plot
+    fig, ax = plt.subplots(ncols=3, figsize=(18, 4))
+    plot_metric(ax[0], iterations, all_weights[:, :, 0], label='N_iterations', title='Weight of asset0')
+    plot_metric(ax[1], iterations, all_metrics[:, :, 0], label='N_iterations', title='Portfolio CVaR')
+    plot_metric(ax[2], iterations, all_metrics[:, :, 1], label='N_iterations', title='$P(r \geq \zeta)$')
+
+    # plot an extra line to visualize the constraint
+    xmin, xmax = ax[2].get_xlim()
+    ax[2].hlines(params['q'], xmin, xmax, color='k', linestyles='--')
+
+    fig.savefig(os.path.join(OUTPUT_DIRECTORY, 'optimization_metrics.pdf'))

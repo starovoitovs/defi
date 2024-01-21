@@ -25,11 +25,11 @@ additional_params = {
     # learning rate of the market impact model
     'learning_rate_mi': 5e-1,
     # number of iterations in market impact model
-    'N_iterations_mi': 20,
+    'N_iterations_mi': 10,
 }
 
 
-def optimize(returns, params):
+def optimize(returns, params, initial_weights):
     algorithms = []
 
     # unconstrained, for demostration purposes
@@ -54,7 +54,7 @@ def optimize(returns, params):
 
             func, kwargs = algorithm['func'], algorithm['kwargs']
 
-            portfolio_weights, *_ = func(returns, params, **kwargs)
+            portfolio_weights, *_ = func(returns, params, weights=initial_weights, **kwargs)
 
             # need this, because zero submission into pools is not allowed
             eps = 1e-8
@@ -96,7 +96,7 @@ def iterate(params, diffs, break_on_constraint_violation=False, update_returns=F
 
     for i, diff in enumerate(diffs):
 
-        results_weights, N_completed = optimize(returns, {**params, **diff})
+        results_weights, N_completed = optimize(returns, {**params, **diff}, best_weights)
 
         # if failed for all constraints apart from unconstrained, early stoppage
         if N_completed <= 1:
@@ -255,7 +255,7 @@ if __name__ == '__main__':
         params_json = {key: value.tolist() if isinstance(value, np.ndarray) else value for key, value in params.items()}
         json.dump(params_json, f, indent=4)
 
-    test_optimizers()
-    # test_market_impact()
+    # test_optimizers()
+    test_market_impact()
 
     logging.info(f"Successfully finished after {time.time() - start_time:.4f} seconds.")

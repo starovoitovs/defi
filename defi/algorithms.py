@@ -5,7 +5,7 @@ from scipy.stats import norm
 import torch
 
 
-def cvx(returns, params, mode):
+def cvx(returns, params, mode, **kwargs):
     assert params['q'] > 0.5
 
     weights = cp.Variable((params['N_pools'],))
@@ -43,15 +43,12 @@ def cvx(returns, params, mode):
     return weights.value,
 
 
-def gradient_descent(returns, params):
+def gradient_descent(returns, params, weights, **kwargs):
     dtype = torch.float
     device = torch.device("cpu")
 
     returns_t = torch.tensor(returns, device=device, dtype=dtype)
-
-    weights_t = np.random.random(params['N_pools'])
-    weights_t /= np.sum(weights_t)
-    weights_t = torch.tensor(weights_t, device=device, dtype=dtype, requires_grad=True)
+    weights_t = torch.tensor(weights, device=device, dtype=dtype, requires_grad=True)
 
     all_losses = torch.empty((0, 4))
     all_weights = torch.empty((0, params['N_pools']))

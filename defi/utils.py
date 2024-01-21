@@ -48,21 +48,22 @@ def plot_2d(returns):
     plt.show()
 
 
-def plot_metric(ax, xs, metrics, label=None, title=None):
-    ax.plot(xs, metrics[:, 0], marker='o', label='unconstrained')
-    ax.plot(xs, metrics[:, 1], marker='o', label='average cdf constraint')
-    ax.plot(xs, metrics[:, 2], marker='o', label='gaussian constraint')
-    ax.plot(xs, metrics[:, 3], marker='o', label='backprop')
+def plot_metric(ax, xs, metrics, line_labels, xlabel=None, title=None):
+
+    for i, label in enumerate(line_labels):
+        ax.plot(xs, metrics[:, i], marker='o', label=label)
+
     ax.legend()
 
-    if label is not None:
-        ax.set_xlabel(label)
+    if xlabel is not None:
+        ax.set_xlabel(xlabel)
 
     if title is not None:
         ax.set_title(title)
 
 
-def get_var_cvar(returns, alpha):
+def get_var_cvar_empcdf(returns, alpha, zeta):
     var = np.quantile(returns, alpha, axis=0)
     cvar = np.sum(returns * (returns <= var), axis=0) / np.sum(returns <= var, axis=0) / (1 - alpha)
-    return var, cvar
+    empcdf = np.where(~np.any(np.isnan(returns), axis=0), np.mean(returns >= zeta, axis=0), np.nan)
+    return var, cvar, empcdf

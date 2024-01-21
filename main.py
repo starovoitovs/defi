@@ -61,7 +61,7 @@ def test2(params):
     # we first generate returns and look at empirical cdf of the portfolio, in order to test the algorithms whenever chance constrained is attained
     returns = generate_returns(params)
     _, _, empcdf = get_var_cvar_empcdf(returns @ params['weights'], params['alpha'], params['zeta'])
-    qs = np.linspace(empcdf - 0.08, empcdf + 0.08, 21)
+    qs = np.linspace(max(empcdf - 0.08, 0.51), empcdf + 0.08, 21)
     test_algorithms(params, [{'q': q} for q in qs], xlabel="q", xaxis=qs)
 
 

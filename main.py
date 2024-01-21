@@ -6,13 +6,13 @@ import time
 from datetime import datetime
 import numpy as np
 import seaborn as sns
+
+from defi.returns import generate_returns
+from defi.utils import get_var_cvar_empcdf
 from params import params
 from defi.validation import test_algorithms, test_returns, test_market_impact
 
 sns.set_theme(style="ticks")
-
-CURRENT_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
-OUTPUT_DIRECTORY = os.path.join(f"_output/runs", CURRENT_TIMESTAMP)
 
 additional_params = {
     # learning rate of the gradient descent
@@ -27,16 +27,12 @@ additional_params = {
     'N_iterations_mi': 20,
     # minimum weight to ensure to we never put 0 coins in a pool
     'weight_eps': 1e-4,
+    # initial weights used for generation of returns and as w0 for some algos, unless overridden
+    'weights': np.repeat(1., params['N_pools']) / params['N_pools'],
 }
 
 
 def test1(params):
-    # test algorithms for various values of q
-    qs = np.linspace(0.55, 0.65, 11)
-    test_algorithms(params, [{'q': q} for q in qs], xlabel="q", xaxis=qs)
-
-
-def test2(params):
     # compute distributions and metrics for various weights
     # we consider the situation where one weight is being varied, while the others are equal, and so that they add up to 1
     # for example, [0.8, 0.1, 0.1]
@@ -60,22 +56,36 @@ def test2(params):
     test_returns(params, params_diffs, xlabels=xlabels, xaxes=xaxes)
 
 
+def test2(params):
+    # test algorithms for various values of q
+    # we first generate returns and look at empirical cdf of the portfolio, in order to test the algorithms whenever chance constrained is attained
+    returns = generate_returns(params)
+    _, _, empcdf = get_var_cvar_empcdf(returns @ params['weights'], params['alpha'], params['zeta'])
+    qs = np.linspace(empcdf - 0.08, empcdf + 0.08, 21)
+    test_algorithms(params, [{'q': q} for q in qs], xlabel="q", xaxis=qs)
+
+
 def test3(params):
     # test market impact iteration
     test_market_impact(params)
 
 
 if __name__ == '__main__':
-    start_time = time.time()
 
-    os.makedirs(OUTPUT_DIRECTORY, exist_ok=True)
+    CURRENT_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+    OUTPUT_DIRECTORY = os.path.join(f"_output/runs", CURRENT_TIMESTAMP)
+
+    os.environ['RUN_ID'] = CURRENT_TIMESTAMP
+    os.environ['OUTPUT_DIRECTORY'] = OUTPUT_DIRECTORY
+
+    os.makedirs(os.environ['OUTPUT_DIRECTORY'], exist_ok=True)
 
     # setup logging
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler(os.path.join(OUTPUT_DIRECTORY, 'log.log')),
+            logging.FileHandler(os.path.join(os.environ['OUTPUT_DIRECTORY'], 'log.log')),
             logging.StreamHandler(sys.stdout),
         ]
     )
@@ -89,16 +99,13 @@ if __name__ == '__main__':
     params = {key: np.array(value) if isinstance(value, list) else value for key, value in params.items()}
 
     # dump params file
-    with open(os.path.join(OUTPUT_DIRECTORY, 'params.json'), 'w') as f:
+    with open(os.path.join(os.environ['OUTPUT_DIRECTORY'], 'params.json'), 'w') as f:
         # convert ndarray to lists
         params_json = {key: value.tolist() if isinstance(value, np.ndarray) else value for key, value in params.items()}
         json.dump(params_json, f, indent=4)
 
-    end_time = time.time() - start_time
-    logging.info(f"Successfully finished after {end_time:.3f} seconds.")
-
     # choose test case
 
     test1(params)
-    # test2(params)
-    # test3(params)
+    test2(params)
+    test3(params)

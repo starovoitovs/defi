@@ -129,7 +129,7 @@ def test_algorithms(params, params_diffs, xlabel, xaxis):
         qs_plot = np.linspace(xmin, xmax, 101)
         ax[4].plot(qs_plot, qs_plot, color='#00000099', ls='dotted')
 
-    fig.savefig(os.path.join(OUTPUT_DIRECTORY, 'test_optimization.pdf'))
+    fig.savefig(os.path.join(OUTPUT_DIRECTORY, 'test_algorithms.pdf'))
 
 
 def test_market_impact(params):

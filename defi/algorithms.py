@@ -43,12 +43,12 @@ def cvx(returns, params, mode, **kwargs):
     return weights.value,
 
 
-def gradient_descent(returns, params, weights, **kwargs):
+def gradient_descent(returns, params, **kwargs):
     dtype = torch.float
     device = torch.device("cpu")
 
     returns_t = torch.tensor(returns, device=device, dtype=dtype)
-    weights_t = torch.tensor(weights, device=device, dtype=dtype, requires_grad=True)
+    weights_t = torch.tensor(params['weights'], device=device, dtype=dtype, requires_grad=True)
 
     all_losses = torch.empty((0, 4))
     all_weights = torch.empty((0, params['N_pools']))

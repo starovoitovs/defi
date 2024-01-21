@@ -6,14 +6,13 @@ import time
 from datetime import datetime
 import numpy as np
 import seaborn as sns
-from matplotlib import pyplot as plt
-
-from defi.algorithms import gradient_descent, cvx
-from defi.returns import generate_returns
-from defi.utils import get_var_cvar_empcdf, plot_metric
 from params import params
+from defi.validation import test_optimizers, test_returns, test_market_impact
 
 sns.set_theme(style="ticks")
+
+CURRENT_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+OUTPUT_DIRECTORY = os.path.join(f"_output/runs", CURRENT_TIMESTAMP)
 
 additional_params = {
     # learning rate of the gradient descent
@@ -25,235 +24,47 @@ additional_params = {
     # learning rate of the market impact model
     'learning_rate_mi': 5e-1,
     # number of iterations in market impact model
-    'N_iterations_mi': 1,
+    'N_iterations_mi': 20,
+    # minimum weight to ensure to we never put 0 coins in a pool
+    'weight_eps': 1e-4,
 }
 
 
-def optimize(returns, params, initial_weights):
-    algorithms = []
-
-    # unconstrained, for demostration purposes
-    algorithms += [{'func': cvx, 'kwargs': {'mode': 0}}]
-
-    # lower bound: average of emp cdf: - might not be a valid constraint! unless VaR subadditive
-    algorithms += [{'func': cvx, 'kwargs': {'mode': 1}}]
-
-    # normal approximation with SOC constraint
-    algorithms += [{'func': cvx, 'kwargs': {'mode': 2}}]
-
-    # gradient descent with backprop
-    algorithms += [{'func': gradient_descent, 'kwargs': {}}]
-
-    results_weights = np.full((len(algorithms), params['N_pools']), np.nan)
-
-    N_completed = 0
-
-    for j, algorithm in enumerate(algorithms):
-
-        try:
-
-            func, kwargs = algorithm['func'], algorithm['kwargs']
-
-            portfolio_weights, *_ = func(returns, params, weights=initial_weights, **kwargs)
-
-            # need this, because zero submission into pools is not allowed
-            eps = 1e-8
-            portfolio_weights = eps + portfolio_weights
-            portfolio_weights /= np.sum(portfolio_weights)
-
-            results_weights[j, :] = portfolio_weights
-
-            N_completed += 1
-
-        except Exception as e:
-            logging.info(f"Algorithm {j} failed: {e}")
-            continue
-
-    return results_weights, N_completed
+def test1(params):
+    # test optimizers for various values of q
+    qs = np.linspace(0.55, 0.65, 11)
+    test_optimizers(params, [{'q': q} for q in qs], xlabel="q", xaxes=qs)
 
 
-def iterate(params, diffs, break_on_constraint_violation=False, update_returns=False, store_initial_weights_and_returns=False):
-    # always start with uniformly distributed portfolio
-    initial_weights = np.repeat(1., params['N_pools']) / params['N_pools']
-    initial_returns = generate_returns(params, initial_weights)
+def test2(params):
+    # test optimizers for various weights
+    wis = np.linspace(params['weight_eps'], 1 - params['weight_eps'], 11)
 
-    N_algorithms = 4
+    params_diffs = []
 
-    if store_initial_weights_and_returns:
-        all_returns = np.full((params['batch_size'], len(diffs) + 1, params['N_pools']), np.nan)
-        all_returns[:, 0, :] = initial_returns
-        all_weights = np.full((len(diffs) + 1, N_algorithms, params['N_pools']), np.nan)
-        all_weights[0, :, :] = initial_weights[None, :]
-        all_best_weights = np.full((len(diffs) + 1, params['N_pools']), np.nan)
-        all_best_weights[0, :] = initial_weights
-    else:
-        all_returns = np.full((params['batch_size'], len(diffs), params['N_pools']), np.nan)
-        all_weights = np.full((len(diffs), N_algorithms, params['N_pools']), np.nan)
-        all_best_weights = np.full((len(diffs), params['N_pools']), np.nan)
+    for pool_tested in range(params['N_pools']):
 
-    returns = initial_returns
-    best_weights = initial_weights
+        all_ws = []
 
-    for i, diff in enumerate(diffs):
+        for wi in wis:
+            ws = np.repeat(1. - wi, params['N_pools']) / (params['N_pools'] - 1)
+            ws[pool_tested] = wi
+            all_ws += [ws]
 
-        results_weights, N_completed = optimize(returns, {**params, **diff}, best_weights)
+        params_diffs += [[{'weights': ws} for ws in all_ws]]
 
-        # if failed for all constraints apart from unconstrained, early stoppage
-        if N_completed <= 1:
-            logging.info(f"All algorithms failed (up to unconstrained cvxpy). Stopping at iteration {i + 1}/{len(diffs)}.")
-            break
-
-        # identify the best weights among all algorithms
-
-        portfolio_returns = returns @ results_weights.T
-        var, cvar, empcdf = get_var_cvar_empcdf(portfolio_returns, params['alpha'], params['zeta'])
-
-        # select weights where the algorithms has finished, constraint is satisfied and CVaR is best
-        arr = np.where(empcdf >= params['q'], cvar, -np.inf)
-
-        # if no algorithm satisfies the constraint, break
-        if break_on_constraint_violation and np.all(arr == -np.inf):
-            logging.info(f"Some algorithms completed successfully, but none satisfied the probabilistic constraint. Stopping at iteration {i + 1}/{len(diffs)}.")
-            break
-
-        idx = np.argmax(arr)
-        best_weights += params['learning_rate_mi'] * (results_weights[idx] - best_weights)
-
-        # if update_returns=True, generate new returns with new weights for the next iteration
-        if update_returns:
-            returns = generate_returns(params, best_weights)
-
-        idx = i + store_initial_weights_and_returns
-        all_best_weights[idx, :] = best_weights
-        all_weights[idx, :, :] = results_weights
-        all_returns[:, idx, :] = returns
-
-    return all_weights, all_best_weights, all_returns
+    xlabels = [f"w{pool_tested}" for pool_tested in range(params['N_pools'])]
+    xaxes = [wis] * params['N_pools']
+    test_returns(params, params_diffs, xlabels=xlabels, xaxes=xaxes)
 
 
-def test_optimizers():
-    # optimization test for various values of q
-    qs = np.linspace(0.85, 0.9, 11)
-    all_weights, all_best_weights, all_returns = iterate(params, [{'q': q} for q in qs],
-                                                         break_on_constraint_violation=False,
-                                                         store_initial_weights_and_returns=False,
-                                                         update_returns=False)
-
-    np.save(os.path.join(OUTPUT_DIRECTORY, 'all_weights.npy'), all_weights)
-    np.save(os.path.join(OUTPUT_DIRECTORY, 'all_best_weights.npy'), all_best_weights)
-    np.save(os.path.join(OUTPUT_DIRECTORY, 'all_returns.npy'), all_returns)
-
-    # compute returns and metrics: (N_return, N_diff, N_algorithm)
-    portfolio_returns = np.einsum('jik,ilk->jil', all_returns, all_weights)
-    _, portfolio_cvar, portfolio_empcdf = get_var_cvar_empcdf(portfolio_returns, params['alpha'], params['zeta'])
-
-    # plot
-    fig, ax = plt.subplots(ncols=5, figsize=(30, 5), gridspec_kw={'hspace': 0.5})
-    fig.subplots_adjust(bottom=0.2)
-    fig.suptitle(f"TEST OPTIMIZERS – {current_timestamp}")
-
-    # output params in text on the plot
-    params_text = {key: f"[{', '.join([str(x) for x in value])}]" if isinstance(value, list) or isinstance(value, np.ndarray) else value for key, value in params.items()}
-    ax[0].text(0, ax[0].get_ylim()[1], json.dumps(params_text, indent=4), ha='left', va='top')
-    ax[0].axis('off')
-
-    # output returns characteristic as barplots
-    bar_width = 0.15
-    initial_returns = all_returns[:, 0, :]  # when testing optimizers, returns remain the same, so can take e.g. 0th ones
-    _, marginal_cvar, marginal_empcdf = get_var_cvar_empcdf(initial_returns, params['alpha'], params['zeta'])
-
-    pool_range = np.arange(initial_returns.shape[1])
-    ax[1].bar(pool_range, np.mean(initial_returns, axis=0), width=bar_width, label='Mean')
-    ax[1].bar(bar_width + pool_range, np.std(initial_returns, axis=0), width=bar_width, label='Std')
-    ax[1].bar(2 * bar_width + pool_range, marginal_cvar, width=bar_width, label='Marginal CVaR')
-    ax[1].bar(3 * bar_width + pool_range, marginal_empcdf, width=bar_width, label='Marginal $P(r \geq \zeta)$')
-    ax[1].legend(loc='upper right', bbox_to_anchor=(1, 1))
-    ax[1].set_xlabel('Pool')
-    ax[1].set_title("Properties of initial returns")
-
-    line_labels = 'unconstrained', 'average cdf constraint', 'gaussian constraint', 'backprop'
-    plot_metric(ax[2], qs, all_weights[:, :, 0], xlabel='q', title='Weight of pool0')
-    plot_metric(ax[3], qs, portfolio_cvar, xlabel='q', title='Portfolio CVaR')
-    plot_metric(ax[4], qs, portfolio_empcdf, line_labels, xlabel='q', title='$P(r \geq \zeta)$')
-
-    # plot an extra line to visualize the constraint
-    xmin, xmax = ax[4].get_xlim()
-    qs_plot = np.linspace(xmin, xmax, 101)
-    ax[4].plot(qs_plot, qs_plot, ls='--')
-
-    fig.savefig(os.path.join(OUTPUT_DIRECTORY, 'optimization.pdf'))
-
-
-def test_market_impact():
-    iterations = np.arange(params['N_iterations_mi'])
-    all_weights, all_best_weights, all_returns = iterate(params, [{} for _ in iterations],
-                                                         break_on_constraint_violation=True,
-                                                         store_initial_weights_and_returns=True,
-                                                         update_returns=True)
-
-    np.save(os.path.join(OUTPUT_DIRECTORY, 'all_weights.npy'), all_weights)
-    np.save(os.path.join(OUTPUT_DIRECTORY, 'all_best_weights.npy'), all_best_weights)
-    np.save(os.path.join(OUTPUT_DIRECTORY, 'all_returns.npy'), all_returns)
-
-    # compute returns and metrics: (N_return, N_diff, N_algorithm)
-    portfolio_returns = np.einsum('jik,ilk->jil', all_returns, all_weights)
-    _, portfolio_cvar, portfolio_empcdf = get_var_cvar_empcdf(portfolio_returns, params['alpha'], params['zeta'])
-    _, marginal_cvar, marginal_empcdf = get_var_cvar_empcdf(all_returns, params['alpha'], params['zeta'])
-
-    # compute returns and metrics: (N_return, N_diff, N_algorithm)
-    portfolio_returns = np.einsum('jik,ilk->jil', all_returns, all_weights)
-    _, portfolio_cvar, portfolio_empcdf = get_var_cvar_empcdf(portfolio_returns, params['alpha'], params['zeta'])
-    _, marginal_cvar, marginal_empcdf = get_var_cvar_empcdf(all_returns, params['alpha'], params['zeta'])
-
-    # plots
-    iterations = np.arange(params['N_iterations_mi'] + 1)
-    fig, ax = plt.subplots(nrows=2, ncols=5, figsize=(30, 8), gridspec_kw={'hspace': 0.5, 'width_ratios': [1.2, 1, 1, 1, 1]})
-    fig.subplots_adjust(bottom=0.2)
-    fig.suptitle(f"MARKET IMPACT – {current_timestamp}")
-
-    line_labels = 'unconstrained', 'average cdf constraint', 'gaussian constraint', 'backprop'
-    plot_metric(ax[0][1], iterations, all_weights[:, :, 0], xlabel='N_iterations', title='Weight of pool0')
-    plot_metric(ax[0][2], iterations, portfolio_cvar, xlabel='N_iterations', title='Portfolio CVaR')
-    plot_metric(ax[0][3], iterations, portfolio_empcdf, xlabel='N_iterations', title='$P(r \geq \zeta)$')
-
-    # plot an extra line to visualize the constraint q
-    xmin, xmax = ax[0][3].get_xlim()
-    ax[0][3].hlines(params['q'], xmin, xmax, color='k', linestyles='--')
-
-    plot_metric(ax[0][4], iterations, np.mean(portfolio_returns, axis=0), line_labels=line_labels, xlabel='N_iterations', title='Mean return')
-
-    # plot return characteristics as function of iteration
-    line_labels = [f"pool{i}" for i in range(params['N_pools'])]
-    plot_metric(ax[1][1], iterations, all_best_weights, xlabel='N_iterations', title='Best weights')
-    plot_metric(ax[1][2], iterations, marginal_cvar, xlabel='N_iterations', title='Marginal CVaR')
-    plot_metric(ax[1][3], iterations, marginal_empcdf, xlabel='N_iterations', title='Marginal $P(r_i \geq \zeta)$')
-
-    # plot an extra line to visualize the constraint q
-    xmin, xmax = ax[1][3].get_xlim()
-    ax[1][3].hlines(params['q'], xmin, xmax, color='k', linestyles='--')
-
-    plot_metric(ax[1][4], iterations, np.mean(all_returns, axis=0), line_labels=line_labels, xlabel='N_iterations', title='Marginal Mean')
-
-    # merge two axes on the left
-    ax_text_left = fig.add_subplot(111, frame_on=False)
-    ax[0][0].axis('off')
-    ax[1][0].axis('off')
-
-    # output params in text on the plot
-    params_text = {key: f"[{', '.join([str(x) for x in value])}]" if isinstance(value, list) or isinstance(value, np.ndarray) else value for key, value in params.items()}
-    ax_text_left.text(0, ax_text_left.get_ylim()[1], json.dumps(params_text, indent=4), ha='left', va='top')
-    ax_text_left.axis('off')
-
-    fig.savefig(os.path.join(OUTPUT_DIRECTORY, 'market_impact.pdf'))
+def test3(params):
+    # test market impact iteration
+    test_market_impact(params)
 
 
 if __name__ == '__main__':
     start_time = time.time()
-
-    PARENT_DIRECTORY = f"_output/runs"
-    current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    OUTPUT_DIRECTORY = os.path.join(PARENT_DIRECTORY, current_timestamp)
 
     os.makedirs(OUTPUT_DIRECTORY, exist_ok=True)
 
@@ -281,7 +92,9 @@ if __name__ == '__main__':
         params_json = {key: value.tolist() if isinstance(value, np.ndarray) else value for key, value in params.items()}
         json.dump(params_json, f, indent=4)
 
-    # test_optimizers()
-    test_market_impact()
+    end_time = time.time() - start_time
+    logging.info(f"Successfully finished after {end_time:.3f} seconds.")
 
-    logging.info(f"Successfully finished after {time.time() - start_time:.4f} seconds.")
+    # test1(params)
+    # test2(params)
+    test3(params)

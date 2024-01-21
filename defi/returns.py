@@ -3,12 +3,12 @@ import numpy as np
 from defi.amm import amm
 
 
-def generate_returns(params, weights):
+def generate_returns(params):
     np.random.seed(params['seed'])
 
     pools = amm(Rx=params['Rx0'], Ry=params['Ry0'], phi=params['phi'])
 
-    xs_0 = weights * params['x_0']
+    xs_0 = params['weights'] * params['x_0']
     l = pools.swap_and_mint(xs_0)
 
     end_pools, Rx_t, Ry_t, v_t, event_type_t, event_direction_t = pools.simulate(params['kappa'], params['p'], params['sigma'], T=params['T'], batch_size=params['batch_size'])

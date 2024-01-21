@@ -51,7 +51,7 @@ def test_returns(params, params_diffs, xlabels, xaxes):
         line_labels = [f"pool{i}" for i in range(params['N_pools'])]
         plot_metric(ax[idx][1], xaxis, marginal_empcdf, xlabel=xlabel, title='$P(r \geq \zeta)$')
         plot_metric(ax[idx][1], xaxis, portfolio_empcdf.reshape(-1, 1), color='k', ls='dashed')
-        xmin, xmax = ax[idx][1].get_ylim()
+        xmin, xmax = ax[idx][1].get_xlim()
         ax[idx][1].hlines(params['q'], xmin, xmax, color='#00000099', linestyles='dotted')
         plot_metric(ax[idx][2], xaxis, marginal_cvar, xlabel=xlabel, title='CVaR')
         plot_metric(ax[idx][2], xaxis, portfolio_cvar.reshape(-1, 1), color='k', ls='dashed')

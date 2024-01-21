@@ -7,7 +7,7 @@ from datetime import datetime
 import numpy as np
 import seaborn as sns
 from params import params
-from defi.validation import test_optimizers, test_returns, test_market_impact
+from defi.validation import test_algorithms, test_returns, test_market_impact
 
 sns.set_theme(style="ticks")
 
@@ -31,13 +31,15 @@ additional_params = {
 
 
 def test1(params):
-    # test optimizers for various values of q
+    # test algorithms for various values of q
     qs = np.linspace(0.55, 0.65, 11)
-    test_optimizers(params, [{'q': q} for q in qs], xlabel="q", xaxes=qs)
+    test_algorithms(params, [{'q': q} for q in qs], xlabel="q", xaxis=qs)
 
 
 def test2(params):
-    # test optimizers for various weights
+    # compute distributions and metrics for various weights
+    # we consider the situation where one weight is being varied, while the others are equal, and so that they add up to 1
+    # for example, [0.8, 0.1, 0.1]
     wis = np.linspace(params['weight_eps'], 1 - params['weight_eps'], 11)
 
     params_diffs = []
@@ -95,6 +97,8 @@ if __name__ == '__main__':
     end_time = time.time() - start_time
     logging.info(f"Successfully finished after {end_time:.3f} seconds.")
 
-    # test1(params)
+    # choose test case
+
+    test1(params)
     # test2(params)
-    test3(params)
+    # test3(params)

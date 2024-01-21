@@ -11,6 +11,15 @@ from defi.utils import get_var_cvar_empcdf, plot_metric
 
 
 def test_returns(params, params_diffs, xlabels, xaxes):
+    """
+    Compute various return distributions and plot/store results, for varying values of parameters.
+    Generates 1 row of plots for each entry list entry in params_diffs (e.g. vary weights w0, w1, w2 ...)
+    :param params: initial parameters
+    :param params_diffs: list with parameter variations
+    :param xlabel: list of labels of x-axis
+    :param xaxes: list of values of x-axis
+    :return:
+    """
     from main import CURRENT_TIMESTAMP, OUTPUT_DIRECTORY
 
     # start with uniformly distributed portfolio, unless overridden
@@ -57,13 +66,21 @@ def test_returns(params, params_diffs, xlabels, xaxes):
     fig.savefig(os.path.join(OUTPUT_DIRECTORY, 'test_returns.pdf'))
 
 
-def test_optimizers(params, diffs, xlabel, xaxes):
+def test_algorithms(params, params_diffs, xlabel, xaxis):
+    """
+    Test various algorithms and plot/store results, for varying values of parameters.
+    :param params: initial parameters
+    :param params_diffs: list with parameter variations
+    :param xlabel: label of x-axis
+    :param xaxis: values of x-axis
+    :return:
+    """
     from main import CURRENT_TIMESTAMP, OUTPUT_DIRECTORY
 
     # start with uniformly distributed portfolio, unless overridden
     params['weights'] = np.repeat(1., params['N_pools']) / params['N_pools']
 
-    all_weights, all_best_weights, all_returns = iterate(params, diffs,
+    all_weights, all_best_weights, all_returns = iterate(params, params_diffs,
                                                          break_on_constraint_violation=False,
                                                          store_initial_weights_and_returns=False,
                                                          update_returns=False)
@@ -102,9 +119,9 @@ def test_optimizers(params, diffs, xlabel, xaxes):
     ax[1].set_title("Properties of initial returns")
 
     line_labels = 'unconstrained', 'average cdf constraint', 'gaussian constraint', 'backprop'
-    plot_metric(ax[2], xaxes, all_weights[:, :, 0], xlabel=xlabel, title='Weight of pool0')
-    plot_metric(ax[3], xaxes, portfolio_cvar, xlabel=xlabel, title='Portfolio CVaR')
-    plot_metric(ax[4], xaxes, portfolio_empcdf, line_labels, xlabel=xlabel, title='$P(r \geq \zeta)$')
+    plot_metric(ax[2], xaxis, all_weights[:, :, 0], xlabel=xlabel, title='Weight of pool0')
+    plot_metric(ax[3], xaxis, portfolio_cvar, xlabel=xlabel, title='Portfolio CVaR')
+    plot_metric(ax[4], xaxis, portfolio_empcdf, line_labels, xlabel=xlabel, title='$P(r \geq \zeta)$')
 
     # plot an extra line to visualize the constraint, if testing against q
     if xlabel == 'q':
@@ -116,6 +133,11 @@ def test_optimizers(params, diffs, xlabel, xaxes):
 
 
 def test_market_impact(params):
+    """
+    Perform market impact iteration.
+    :param params: Initial parameters
+    :return:
+    """
     from main import CURRENT_TIMESTAMP, OUTPUT_DIRECTORY
 
     iterations = np.arange(params['N_iterations_mi'])

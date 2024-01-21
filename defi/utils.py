@@ -13,15 +13,15 @@ def plot_mi_convergence(results_weights, results_metrics, params):
     ax[1].set_title('Portfolio allocation')
 
 
-def plot_hist(log_ret):
+def plot_hist(returns):
     zeta = 0.05
     alpha = 0.95
 
-    sns.kdeplot(log_ret)
+    sns.kdeplot(returns)
 
-    p = np.mean(log_ret >= zeta)
-    qtl = np.quantile(-log_ret, alpha)
-    cvar = np.mean(-log_ret[-log_ret >= qtl])
+    p = np.mean(returns >= zeta)
+    qtl = np.quantile(-returns, alpha)
+    cvar = np.mean(-returns[-returns >= qtl])
 
     plt.axvline(-qtl, c='y', linestyle='--', label=f'VaR={-qtl:4.2}')
     plt.axvline(-cvar, c='r', linestyle='--', label=f'CVaR={-cvar:4.2}')

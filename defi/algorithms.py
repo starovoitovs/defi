@@ -73,7 +73,7 @@ def gradient_descent(returns, params, weights, **kwargs):
         loss3 = -cvar
 
         # total loss
-        loss = params['loss_weights'][0] * loss0 + params['loss_weights'][1] * loss1 + params['loss_weights'][2] * loss2 + params['loss_weights'][3] * loss3
+        loss = params['loss_weights_gd'][0] * loss0 + params['loss_weights_gd'][1] * loss1 + params['loss_weights_gd'][2] * loss2 + params['loss_weights_gd'][3] * loss3
 
         all_losses = torch.cat([all_losses, torch.tensor([loss0, loss1, loss2, loss3]).reshape(1, -1)])
         all_weights = torch.cat([all_weights, weights_t.reshape(1, -1)])

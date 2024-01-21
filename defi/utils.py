@@ -48,12 +48,14 @@ def plot_2d(returns):
     plt.show()
 
 
-def plot_metric(ax, xs, metrics, line_labels, xlabel=None, title=None):
+def plot_metric(ax, xs, metrics, line_labels=None, xlabel=None, title=None):
 
-    for i, label in enumerate(line_labels):
+    for i in range(metrics.shape[1]):
+        label = None if line_labels is None else line_labels[i]
         ax.plot(xs, metrics[:, i], marker='o', label=label)
 
-    ax.legend()
+    if line_labels is not None:
+        ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
 
     if xlabel is not None:
         ax.set_xlabel(xlabel)

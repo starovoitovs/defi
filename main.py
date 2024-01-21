@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+import time
 from datetime import datetime
 import numpy as np
 import seaborn as sns
@@ -21,6 +22,8 @@ additional_params = {
     'N_iterations_gd': 2000,
     # loss weights in gradient descent
     'loss_weights': [1e3, 1., 1., 1.],
+    # learning rate of the market impact model
+    'learning_rate_mi': 5e-1,
     # number of iterations in market impact model
     'N_iterations_mi': 20,
 }
@@ -89,6 +92,7 @@ def iterate(params, diffs, break_on_constraint_violation=False, update_returns=F
         all_best_weights = np.full((len(diffs), params['N_pools']), np.nan)
 
     returns = initial_returns
+    best_weights = initial_weights
 
     for i, diff in enumerate(diffs):
 
@@ -113,7 +117,7 @@ def iterate(params, diffs, break_on_constraint_violation=False, update_returns=F
             break
 
         idx = np.argmax(arr)
-        best_weights = results_weights[idx]
+        best_weights += params['learning_rate_mi'] * (results_weights[idx] - best_weights)
 
         # if update_returns=True, generate new returns with new weights for the next iteration
         if update_returns:
@@ -130,7 +134,10 @@ def iterate(params, diffs, break_on_constraint_violation=False, update_returns=F
 def test_optimizers():
     # optimization test for various values of q
     qs = np.linspace(0.65, 0.7, 11)
-    all_weights, all_best_weights, all_returns = iterate(params, [{'q': q} for q in qs], break_on_constraint_violation=False, update_returns=False, store_initial_weights_and_returns=False)
+    all_weights, all_best_weights, all_returns = iterate(params, [{'q': q} for q in qs],
+                                                         break_on_constraint_violation=False,
+                                                         store_initial_weights_and_returns=False,
+                                                         update_returns=False)
 
     np.save(os.path.join(OUTPUT_DIRECTORY, 'all_weights.npy'), all_weights)
     np.save(os.path.join(OUTPUT_DIRECTORY, 'all_best_weights.npy'), all_best_weights)
@@ -143,8 +150,8 @@ def test_optimizers():
     # plot
     fig, ax = plt.subplots(ncols=3, figsize=(18, 4), gridspec_kw={'hspace': 0.5})
     line_labels = 'unconstrained', 'average cdf constraint', 'gaussian constraint', 'backprop'
-    plot_metric(ax[0], qs, all_weights[:, :, 0], line_labels, xlabel='q', title='Weight of asset0')
-    plot_metric(ax[1], qs, cvar, line_labels, xlabel='q', title='Portfolio CVaR')
+    plot_metric(ax[0], qs, all_weights[:, :, 0], xlabel='q', title='Weight of asset0')
+    plot_metric(ax[1], qs, cvar, xlabel='q', title='Portfolio CVaR')
     plot_metric(ax[2], qs, empcdf, line_labels, xlabel='q', title='$P(r \geq \zeta)$')
 
     # plot an extra line to visualize the constraint
@@ -157,7 +164,10 @@ def test_optimizers():
 
 def test_market_impact():
     iterations = np.arange(params['N_iterations_mi'])
-    all_weights, all_best_weights, all_returns = iterate(params, [{} for _ in iterations], break_on_constraint_violation=True, update_returns=True, store_initial_weights_and_returns=True)
+    all_weights, all_best_weights, all_returns = iterate(params, [{} for _ in iterations],
+                                                         break_on_constraint_violation=True,
+                                                         store_initial_weights_and_returns=True,
+                                                         update_returns=True)
 
     np.save(os.path.join(OUTPUT_DIRECTORY, 'all_weights.npy'), all_weights)
     np.save(os.path.join(OUTPUT_DIRECTORY, 'all_best_weights.npy'), all_best_weights)
@@ -171,9 +181,9 @@ def test_market_impact():
     iterations = np.arange(params['N_iterations_mi'] + 1)
     fig, ax = plt.subplots(nrows=2, ncols=4, figsize=(24, 8), gridspec_kw={'hspace': 0.5})
     line_labels = 'unconstrained', 'average cdf constraint', 'gaussian constraint', 'backprop'
-    plot_metric(ax[0][0], iterations, all_weights[:, :, 0], line_labels, xlabel='N_iterations', title='Weight of asset0')
-    plot_metric(ax[0][1], iterations, portfolio_cvar, line_labels, xlabel='N_iterations', title='Portfolio CVaR')
-    plot_metric(ax[0][2], iterations, portfolio_empcdf, line_labels, xlabel='N_iterations', title='$P(r \geq \zeta)$')
+    plot_metric(ax[0][0], iterations, all_weights[:, :, 0], xlabel='N_iterations', title='Weight of asset0')
+    plot_metric(ax[0][1], iterations, portfolio_cvar, xlabel='N_iterations', title='Portfolio CVaR')
+    plot_metric(ax[0][2], iterations, portfolio_empcdf, xlabel='N_iterations', title='$P(r \geq \zeta)$')
 
     # plot an extra line to visualize the constraint q
     xmin, xmax = ax[0][2].get_xlim()
@@ -184,9 +194,9 @@ def test_market_impact():
     # plot return characteristics as function of iteration
     line_labels = [f"asset{i}" for i in range(params['N_pools'])]
     _, marginal_cvar, marginal_empcdf = get_var_cvar_empcdf(all_returns, params['alpha'], params['zeta'])
-    plot_metric(ax[1][0], iterations, all_best_weights, line_labels, xlabel='N_iterations', title='Best weights')
-    plot_metric(ax[1][1], iterations, np.mean(all_returns, axis=0), line_labels, xlabel='N_iterations', title='Marginal Mean')
-    plot_metric(ax[1][2], iterations, marginal_cvar, line_labels, xlabel='N_iterations', title='Marginal CVaR')
+    plot_metric(ax[1][0], iterations, all_best_weights, xlabel='N_iterations', title='Best weights')
+    plot_metric(ax[1][1], iterations, np.mean(all_returns, axis=0), xlabel='N_iterations', title='Marginal Mean')
+    plot_metric(ax[1][2], iterations, marginal_cvar, xlabel='N_iterations', title='Marginal CVaR')
     plot_metric(ax[1][3], iterations, marginal_empcdf, line_labels, xlabel='N_iterations', title='Marginal $P(r_i \geq \zeta)$')
 
     # plot an extra line to visualize the constraint q
@@ -197,6 +207,8 @@ def test_market_impact():
 
 
 if __name__ == '__main__':
+    start_time = time.time()
+
     PARENT_DIRECTORY = f"_output/runs"
     RUN_DIRECTORY = datetime.now().strftime("%Y%d%m_%H%M%S")
     OUTPUT_DIRECTORY = os.path.join(PARENT_DIRECTORY, RUN_DIRECTORY)
@@ -227,4 +239,7 @@ if __name__ == '__main__':
         params_json = {key: value.tolist() if isinstance(value, np.ndarray) else value for key, value in params.items()}
         json.dump(params_json, f, indent=4)
 
+    # test_optimizers()
     test_market_impact()
+
+    logging.info(f"Successfully finished after {time.time() - start_time:.4f} seconds.")

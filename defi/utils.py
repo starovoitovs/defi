@@ -31,13 +31,13 @@ def plot_hist(log_ret):
 
 
 def plot_2d(returns):
-    n_assets = returns.shape[1]
+    N_pools = returns.shape[1]
 
-    fig, ax = plt.subplots(nrows=n_assets, ncols=n_assets, figsize=(2 * n_assets + 2, 2 * n_assets), constrained_layout=True)
+    fig, ax = plt.subplots(nrows=N_pools, ncols=N_pools, figsize=(2 * N_pools + 2, 2 * N_pools), constrained_layout=True)
     fig.suptitle('2D marginals', fontsize=20)
 
-    for i in range(n_assets):
-        for j in range(n_assets):
+    for i in range(N_pools):
+        for j in range(N_pools):
             if i < j:
                 ax[i][j].hist2d(returns[:, i], returns[:, j], bins=50, range=[[-0.3, 0.3], [-0.3, 0.3]], cmap='viridis')
             if i > j:

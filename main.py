@@ -133,7 +133,7 @@ def iterate(params, diffs, break_on_constraint_violation=False, update_returns=F
 
 def test_optimizers():
     # optimization test for various values of q
-    qs = np.linspace(0.65, 0.7, 11)
+    qs = np.linspace(0.55, 0.65, 11)
     all_weights, all_best_weights, all_returns = iterate(params, [{'q': q} for q in qs],
                                                          break_on_constraint_violation=False,
                                                          store_initial_weights_and_returns=False,
@@ -145,19 +145,34 @@ def test_optimizers():
 
     # compute returns and metrics: (N_return, N_diff, N_algorithm)
     portfolio_returns = np.einsum('jik,ilk->jil', all_returns, all_weights)
-    var, cvar, empcdf = get_var_cvar_empcdf(portfolio_returns, params['alpha'], params['zeta'])
+    _, portfolio_cvar, portfolio_empcdf = get_var_cvar_empcdf(portfolio_returns, params['alpha'], params['zeta'])
 
     # plot
-    fig, ax = plt.subplots(ncols=3, figsize=(18, 4), gridspec_kw={'hspace': 0.5})
+    fig, ax = plt.subplots(ncols=4, figsize=(24, 4), gridspec_kw={'hspace': 0.5})
+    fig.subplots_adjust(bottom=0.2)
+
+    bar_width = 0.15
+    initial_returns = all_returns[:, 0, :]  # when testing optimizers, returns remain the same, so can take e.g. 0th ones
+    _, marginal_cvar, marginal_empcdf = get_var_cvar_empcdf(initial_returns, params['alpha'], params['zeta'])
+
+    pool_range = np.arange(initial_returns.shape[1])
+    ax[0].bar(pool_range, np.mean(initial_returns, axis=0), width=bar_width, label='Mean')
+    ax[0].bar(bar_width + pool_range, np.std(initial_returns, axis=0), width=bar_width, label='Std')
+    ax[0].bar(2 * bar_width + pool_range, marginal_cvar, width=bar_width, label='Marginal CVaR')
+    ax[0].bar(3 * bar_width + pool_range, marginal_empcdf, width=bar_width, label='Marginal $P(r \geq \zeta)$')
+    ax[0].legend(loc='upper right', bbox_to_anchor=(1, 1))
+    ax[0].set_xlabel('Pool')
+    ax[0].set_title("Properties of initial returns")
+
     line_labels = 'unconstrained', 'average cdf constraint', 'gaussian constraint', 'backprop'
-    plot_metric(ax[0], qs, all_weights[:, :, 0], xlabel='q', title='Weight of asset0')
-    plot_metric(ax[1], qs, cvar, xlabel='q', title='Portfolio CVaR')
-    plot_metric(ax[2], qs, empcdf, line_labels, xlabel='q', title='$P(r \geq \zeta)$')
+    plot_metric(ax[1], qs, all_weights[:, :, 0], xlabel='q', title='Weight of pool0')
+    plot_metric(ax[2], qs, portfolio_cvar, xlabel='q', title='Portfolio CVaR')
+    plot_metric(ax[3], qs, portfolio_empcdf, line_labels, xlabel='q', title='$P(r \geq \zeta)$')
 
     # plot an extra line to visualize the constraint
-    xmin, xmax = ax[2].get_xlim()
+    xmin, xmax = ax[3].get_xlim()
     qs_plot = np.linspace(xmin, xmax, 101)
-    ax[2].plot(qs_plot, qs_plot, ls='--')
+    ax[3].plot(qs_plot, qs_plot, ls='--')
 
     fig.savefig(os.path.join(OUTPUT_DIRECTORY, 'optimization_metrics.pdf'))
 
@@ -176,12 +191,13 @@ def test_market_impact():
     # compute returns and metrics: (N_return, N_diff, N_algorithm)
     portfolio_returns = np.einsum('jik,ilk->jil', all_returns, all_weights)
     _, portfolio_cvar, portfolio_empcdf = get_var_cvar_empcdf(portfolio_returns, params['alpha'], params['zeta'])
+    _, marginal_cvar, marginal_empcdf = get_var_cvar_empcdf(all_returns, params['alpha'], params['zeta'])
 
     # plots
     iterations = np.arange(params['N_iterations_mi'] + 1)
     fig, ax = plt.subplots(nrows=2, ncols=4, figsize=(24, 8), gridspec_kw={'hspace': 0.5})
     line_labels = 'unconstrained', 'average cdf constraint', 'gaussian constraint', 'backprop'
-    plot_metric(ax[0][0], iterations, all_weights[:, :, 0], xlabel='N_iterations', title='Weight of asset0')
+    plot_metric(ax[0][0], iterations, all_weights[:, :, 0], xlabel='N_iterations', title='Weight of pool0')
     plot_metric(ax[0][1], iterations, portfolio_cvar, xlabel='N_iterations', title='Portfolio CVaR')
     plot_metric(ax[0][2], iterations, portfolio_empcdf, xlabel='N_iterations', title='$P(r \geq \zeta)$')
 
@@ -189,19 +205,19 @@ def test_market_impact():
     xmin, xmax = ax[0][2].get_xlim()
     ax[0][2].hlines(params['q'], xmin, xmax, color='k', linestyles='--')
 
-    plot_metric(ax[0][3], iterations, np.mean(portfolio_returns, axis=0), line_labels, xlabel='N_iterations', title='Mean return')
+    plot_metric(ax[0][3], iterations, np.mean(portfolio_returns, axis=0), line_labels=line_labels, xlabel='N_iterations', title='Mean return')
 
     # plot return characteristics as function of iteration
-    line_labels = [f"asset{i}" for i in range(params['N_pools'])]
-    _, marginal_cvar, marginal_empcdf = get_var_cvar_empcdf(all_returns, params['alpha'], params['zeta'])
+    line_labels = [f"pool{i}" for i in range(params['N_pools'])]
     plot_metric(ax[1][0], iterations, all_best_weights, xlabel='N_iterations', title='Best weights')
-    plot_metric(ax[1][1], iterations, np.mean(all_returns, axis=0), xlabel='N_iterations', title='Marginal Mean')
-    plot_metric(ax[1][2], iterations, marginal_cvar, xlabel='N_iterations', title='Marginal CVaR')
-    plot_metric(ax[1][3], iterations, marginal_empcdf, line_labels, xlabel='N_iterations', title='Marginal $P(r_i \geq \zeta)$')
+    plot_metric(ax[1][1], iterations, marginal_cvar, xlabel='N_iterations', title='Marginal CVaR')
+    plot_metric(ax[1][2], iterations, marginal_empcdf, xlabel='N_iterations', title='Marginal $P(r_i \geq \zeta)$')
 
     # plot an extra line to visualize the constraint q
-    xmin, xmax = ax[1][3].get_xlim()
-    ax[1][3].hlines(params['q'], xmin, xmax, color='k', linestyles='--')
+    xmin, xmax = ax[1][2].get_xlim()
+    ax[1][2].hlines(params['q'], xmin, xmax, color='k', linestyles='--')
+
+    plot_metric(ax[1][3], iterations, np.mean(all_returns, axis=0), line_labels=line_labels, xlabel='N_iterations', title='Marginal Mean')
 
     fig.savefig(os.path.join(OUTPUT_DIRECTORY, 'optimization_metrics.pdf'))
 
@@ -239,7 +255,7 @@ if __name__ == '__main__':
         params_json = {key: value.tolist() if isinstance(value, np.ndarray) else value for key, value in params.items()}
         json.dump(params_json, f, indent=4)
 
-    # test_optimizers()
-    test_market_impact()
+    test_optimizers()
+    # test_market_impact()
 
     logging.info(f"Successfully finished after {time.time() - start_time:.4f} seconds.")

@@ -1,66 +1,36 @@
-import cvxpy as cp
 import numpy as np
-from scipy.linalg import sqrtm
-from scipy.stats import norm
 import torch
 
 
-def cvx(returns, params, mode, **kwargs):
-    assert params['q'] > 0.5
+def gradient_descent(xs, ys, rxs, rys, phis, params, **kwargs):
 
-    weights = cp.Variable((params['N_pools'],))
-    X = returns @ weights
-
-    Z = cp.Variable((params['batch_size'],))
-    var = cp.Variable((1,))
-    cvar = var + 1. / (params['alpha'] * params['batch_size']) * cp.sum(Z)
-
-    # generic weight constraints
-    constraints = [cp.sum(weights) == 1., weights <= 1., weights * 1000 >= 0]
-
-    # CVaR constraints
-    constraints += [Z * 1000 >= 0, Z * 1000 >= -X * 1000 - var * 1000]
-
-    # unconstrained
-    if mode == 0:
-        pass
-    # lower bound: average of emp cdf: - might not be a valid constraint! unless VaR subadditive
-    elif mode == 1:
-        emp_cdf = np.mean(returns >= params['zeta'], axis=0)
-        constraints += [emp_cdf @ weights * 1000 >= params['q'] * 1000]
-    # normal approximation with SOC constraint
-    elif mode == 2:
-        mean, cov = np.mean(returns, axis=0), np.cov(returns.T)
-        sqrtcov = sqrtm(cov)
-        constraints += [cp.SOC((-params['zeta'] + mean @ weights) / norm.ppf(params['q']), sqrtcov @ weights)]
-
-    objective = cp.Minimize(cvar * 1000)
-
-    # possible solvers: "ECOS", "SCS", "OSQP", "CVXOPT"
-    prob = cp.Problem(objective, constraints)
-    result = prob.solve(solver="SCS")
-
-    return weights.value,
-
-
-def gradient_descent(returns, params, **kwargs):
     dtype = torch.float
     device = torch.device("cpu")
 
-    returns_t = torch.tensor(returns, device=device, dtype=dtype)
+    xs_t = torch.tensor(xs, device=device, dtype=dtype)
+    ys_t = torch.tensor(ys, device=device, dtype=dtype)
+    rxs_t = torch.tensor(rxs, device=device, dtype=dtype)
+    rys_t = torch.tensor(rys, device=device, dtype=dtype)
+    phi_t = torch.tensor(phis, device=device, dtype=dtype)
+
+    w0_t = torch.tensor(params['weights'], device=device, dtype=dtype)
     weights_t = torch.tensor(params['weights'], device=device, dtype=dtype, requires_grad=True)
 
-    all_losses = torch.empty((0, 4))
     all_weights = torch.empty((0, params['N_pools']))
 
-    for t in range(params['N_iterations_gd']):
-        portfolio_returns_t = returns_t @ weights_t / torch.sum(weights_t)
+    log_x0 = np.log(params['x_0'])
 
-        var = torch.quantile(portfolio_returns_t, params['alpha'], axis=0)
-        cvar = torch.sum(portfolio_returns_t * (portfolio_returns_t <= var), axis=0) / torch.sum(portfolio_returns_t <= var, axis=0) / (1 - params['alpha'])
+    for t in range(params['N_iterations_gd']):
+
+        x_burn_t = xs_t @ (weights_t / w0_t) / torch.sum(weights_t)
+        y_burn_t = ys_t @ (weights_t / w0_t) / torch.sum(weights_t)
+        x_swap_t = y_burn_t * (1 - phi_t) * rxs_t / (rys_t + (1 - phi_t) * y_burn_t)
+        portfolio_returns_t = torch.log(x_burn_t + x_swap_t) - log_x0
+
+        qtl = torch.quantile(-portfolio_returns_t, params['alpha'])
+        cvar = torch.mean(-portfolio_returns_t[-portfolio_returns_t >= qtl])
 
         # chance constraint
-        # loss1 = (torch.mean((portfolio_returns >= zeta).float()) - q) ** 2
         loss0 = torch.relu(params['q'] - torch.mean(torch.sigmoid(1000 * (portfolio_returns_t - params['zeta'])))) ** 2
 
         # ensure that weights not negative
@@ -70,12 +40,11 @@ def gradient_descent(returns, params, **kwargs):
         loss2 = torch.square(torch.sum(weights_t) - 1.)
 
         # CVaR constraints
-        loss3 = -cvar
+        loss3 = cvar
 
         # total loss
         loss = params['loss_weights_gd'][0] * loss0 + params['loss_weights_gd'][1] * loss1 + params['loss_weights_gd'][2] * loss2 + params['loss_weights_gd'][3] * loss3
 
-        all_losses = torch.cat([all_losses, torch.tensor([loss0, loss1, loss2, loss3]).reshape(1, -1)])
         all_weights = torch.cat([all_weights, weights_t.reshape(1, -1)])
 
         loss.backward()
@@ -87,4 +56,4 @@ def gradient_descent(returns, params, **kwargs):
     weights_n = np.maximum(weights_n, 0)
     weights_n /= np.sum(weights_n)
 
-    return weights_n, all_losses.detach().numpy()
+    return weights_n, cvar.detach().numpy()

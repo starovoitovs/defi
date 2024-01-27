@@ -6,50 +6,20 @@ Created on Fri Nov 17 09:05:41 2023
 """
 import numpy as np
 
-# N_pools = 4
-# params = {'N_pools': N_pools,
-#           'Rx0': 100 * np.ones(N_pools),
-#           'Ry0': 100 * np.ones(N_pools),
-#           'phi': 0.03 * np.ones(N_pools),
-#           'x_0': 100,
-#           'alpha': 0.05,
-#           'q': 0.65,
-#           'zeta': 0.05,
-#           'batch_size': 1_000,
-#           'kappa': [0.5, 0.4, 1., 0.3, 0.9],
-#           'sigma': [0.5, 1.5, 1.75, 2, 1.25],
-#           'p': [0.35, 0.3, 0.34, 0.33, 0.32],
-#           'T': 60,
-#           'seed': 4294967143}
+# the actual parameters
 
-# N_pools = 6
-# params = {'N_pools': N_pools,
-#           'Rx0': 100 * np.ones(N_pools),
-#           'Ry0': 1000 * np.ones(N_pools),
-#           'phi': 0.03 * np.ones(N_pools),
-#           'x_0': 600.,
-#           'alpha': 0.05,
-#           'q': 0.6,
-#           'zeta': 0.05,
-#           'batch_size': 1_000,
-#           'kappa': np.array([0.25, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]),
-#           'sigma': np.array([1, 0.5, 0.5, 1.5, 1.75, 2, 2.25]),
-#           'p': np.array([0.32, 0.34, 0.34, 0.33, 0.32, 0.31, 0.32]),
-#           'T': 60,
-#           'seed': 4294967143}
-
-N_pools = 2
+N_pools = 6
 params = {'N_pools': N_pools,
           'Rx0': 100 * np.ones(N_pools),
           'Ry0': 1000 * np.ones(N_pools),
-          'phi': np.array([0.03, 0.03]),
-          'x_0': 200.,
-          'alpha': 0.05,
-          'q': 0.65,
+          'phi': 0.03 * np.ones(N_pools),
+          'x_0': 10.,
+          'alpha': 0.9,
+          'q': 0.8,
           'zeta': 0.05,
-          'batch_size': 1_000,
-          'kappa': np.array([0.5, 0.5, 0.5]),
-          'sigma': np.array([1., 1., 1.]),
-          'p': np.array([0.35, 0.35, 0.35]),
+          'batch_size': 10000,
+          'kappa': np.array([0.25, 0.5, 0.5, 0.45, 0.45, 0.4, 0.3]),
+          'sigma': np.array([1., 0.3, 0.5, 1., 1.25, 2, 4]),
+          'p': np.array([0.45, 0.45, 0.4, 0.38, 0.36, 0.34, 0.3]),
           'T': 60,
-          'seed': 4294967143}
+          'seed': 4294967145}

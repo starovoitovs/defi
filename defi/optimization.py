@@ -1,3 +1,7 @@
+import logging
+import os
+import time
+
 import numpy as np
 
 from defi.algorithms import gradient_descent
@@ -5,7 +9,10 @@ from defi.returns import generate_market
 from defi.utils import get_var_cvar_empcdf, compute_returns
 
 
-def optimize_iterate(params, N_iterations):
+def optimize(params):
+
+    start_time = time.time()
+    logging.info(f"Starting `test_optimize`.")
 
     weights = params['weights'].copy()
 
@@ -23,7 +30,9 @@ def optimize_iterate(params, N_iterations):
     all_returns = np.vstack([all_returns, portfolio_returns.reshape(1, -1)])
     all_metrics = np.vstack([all_metrics, np.array([[np.nan, cvar_actual, empcdf]])])
 
-    for i in range(N_iterations):
+    logging.info(np.array([cvar_actual, empcdf, *weights]))
+
+    for i in range(params['N_iterations_refinement']):
 
         weights, cvar_algorithm = gradient_descent(xs, ys, rxs, rys, phis, {**params, 'weights': weights})
 
@@ -40,6 +49,16 @@ def optimize_iterate(params, N_iterations):
         all_weights = np.vstack([all_weights, weights.reshape(1, -1)])
         all_returns = np.vstack([all_returns, portfolio_returns.reshape(1, -1)])
         all_metrics = np.vstack([all_metrics, np.array([[cvar_algorithm, cvar_actual, empcdf]])])
+
+        logging.info(np.array([cvar_actual, empcdf, *weights]))
+
+    os.makedirs(os.path.join(os.environ['OUTPUT_DIRECTORY'], 'numpy'), exist_ok=True)
+    np.save(os.path.join(os.environ['OUTPUT_DIRECTORY'], 'numpy', 'weights.npy'), all_weights)
+    np.save(os.path.join(os.environ['OUTPUT_DIRECTORY'], 'numpy', 'returns.npy'), all_returns)
+    np.save(os.path.join(os.environ['OUTPUT_DIRECTORY'], 'numpy', 'metrics.npy'), all_metrics)
+
+    end_time = time.time() - start_time
+    logging.info(f"Successfully finished `test_optimize` after {end_time:.3f} seconds.")
 
     return all_weights, all_returns, all_metrics
 

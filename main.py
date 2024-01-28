@@ -7,8 +7,8 @@ from datetime import datetime
 import numpy as np
 import seaborn as sns
 
+from defi.optimization import optimize
 from params import params
-from defi.validation import test_optimize
 
 sns.set_theme(style="ticks")
 
@@ -21,17 +21,18 @@ additional_params = {
     'N_iterations_gd': 2000,
     # loss weights in gradient descent
     'loss_weights_gd': [1e1, 1., 1., 1.],
-    # minimum weight to ensure to we never put 0 coins in a pool
+    # minimum weight to ensure that we never put 0 coins in a pool
     'weight_eps': 1e-4,
-    # initial weights used for generation of returns and as w0 for some algos, unless overridden
-    # 'weights': np.repeat(1., params['N_pools']) / params['N_pools'],
-    'weights': np.array([0.01, 0.5, 0.3, 0.14, 0.04, 0.01]),
+    # initial weights used for generation of returns
+    # 'weights': np.repeat(1., params['N_pools']) / params['N_pools'], # uniform
+    # 'weights': [0.01, 0.5, 0.3, 0.14, 0.04, 0.01], # good guess
+    'weights': [0.001, 0.001, 0.001, 0.001, 0.001, 0.995], # bad guess
 }
 
 
 if __name__ == '__main__':
 
-    CURRENT_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+    CURRENT_TIMESTAMP = datetime.now().strftime("%Y%m%d/%Y%m%d_%H%M%S")
     OUTPUT_DIRECTORY = os.path.join(f"_output/runs", CURRENT_TIMESTAMP)
 
     os.environ['RUN_ID'] = CURRENT_TIMESTAMP
@@ -51,6 +52,10 @@ if __name__ == '__main__':
 
     logging.info(f"Logging into directory {OUTPUT_DIRECTORY}.")
 
+    # ensure lines are not breaking when printing numpy array
+    np.set_printoptions(threshold=np.inf)
+    np.set_printoptions(linewidth=np.inf)
+
     sys.stdout = logging.StreamHandler(sys.stdout)
 
     # merge original parameters and additional parameters
@@ -65,4 +70,4 @@ if __name__ == '__main__':
         params_json = {key: value.tolist() if isinstance(value, np.ndarray) else value for key, value in params.items()}
         json.dump(params_json, f, indent=4)
 
-    test_optimize(params)
+    optimize(params)

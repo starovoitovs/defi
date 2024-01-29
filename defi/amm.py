@@ -212,22 +212,21 @@ class amm():
         if not isinstance(l, np.ndarray):
             l = np.array(l)
 
-        x_burn, y = self.burn(l)
+        x_burn, y_burn = self.burn(l)
         
         max_quote = 0
-        y_to_swap = np.zeros()
-        y_burn = np.sum(y)
+        y_argmax = None
+
         for i in range(len(self.Rx)):
-            y_quote = np.zeros((len(self.Rx),))
-            y_quote[i] = y_burn
-            quote = self.swap_y_to_x(y_quote, quote=True)
+            y_swap = np.zeros((len(self.Rx),))
+            y_swap[i] = np.sum(y_burn)
+            quote = np.sum(self.swap_y_to_x(y_swap, quote=True))
             if quote > max_quote:
                 max_quote = quote
-                y_to_swap = y_quote
+                y_argmax = y_swap
         
-        x_swap = self.swap_y_to_x(y_to_swap)
-
-        return x_burn + x_swap
+        x_swap = self.swap_y_to_x(y_argmax)
+        return np.sum(x_burn + x_swap)
 
     def burn(self, l):
         """

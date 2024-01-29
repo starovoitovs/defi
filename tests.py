@@ -52,7 +52,8 @@ class TestAmm(unittest.TestCase):
         # burning and swapping the l LP tokens
         total_x = pools.burn_and_swap(l)
         # this output is different from the notebook, but it's incorrect in the notebook, since burn_and_swap returns an array, not a scalar
-        self.assertTrue(np.allclose(total_x, np.array([9.97, 9.97, 9.97]), rtol=1e-2))
+        print(total_x)
+        self.assertTrue(np.allclose(total_x, np.array(28.796), rtol=1e-2))
         self.assertTrue(np.allclose(pools.l, np.array(np.array([0., 0., 0.])), rtol=1e-2))
         self.assertTrue(np.allclose(pools.L, np.array(np.array([316.23, 316.23, 316.23])), rtol=1e-2))
 

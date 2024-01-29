@@ -5,6 +5,12 @@ This is the code for the [SIAM/FME Code Quest 2023](https://sites.google.com/vie
 * `params.py` - original parameters from the challenge.
 * `main.py` - contains `additional_params` object with custom parameters.
 
+# Tests
+
+Unit tests for the first part of the challenge are located in `tests.py`. They can be run by
+
+    python tests.py
+
 # Run optimizer
 
 You can run a single experiment as follows:

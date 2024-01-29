@@ -12,6 +12,8 @@ from params import params
 
 sns.set_theme(style="ticks")
 
+params['seed'] = int(os.environ['SEED']) if 'SEED' in os.environ else params['seed']
+
 additional_params = {
     # number of iteratations for the "iteration" (refinement) loop
     'N_iterations_refinement': 20,

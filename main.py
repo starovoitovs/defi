@@ -12,8 +12,6 @@ from params import params
 
 sns.set_theme(style="ticks")
 
-params['seed'] = int(os.environ['SEED']) if 'SEED' in os.environ else params['seed']
-
 additional_params = {
     # number of iteratations for the "iteration" (refinement) loop
     'N_iterations_refinement': 20,
@@ -26,7 +24,7 @@ additional_params = {
     # minimum weight to ensure that we never put 0 coins in a pool
     'weight_eps': 1e-4,
     # initial weights used for generation of returns
-    # 'weights': np.repeat(1., params['N_pools']) / params['N_pools'], # uniform
+    'weights': np.repeat(1., params['N_pools']) / params['N_pools'],
     # 'weights': [0.01, 0.5, 0.3, 0.14, 0.04, 0.01], # good guess
     # 'weights': [0.001, 0.001, 0.001, 0.001, 0.001, 0.995], # bad guess
 }
@@ -34,14 +32,18 @@ additional_params = {
 
 if __name__ == '__main__':
 
-    exp_name = os.environ['EXPERIMENT_NAME'] if 'EXPERIMENT_NAME' in os.environ else 'experiment'
+    exp_name = os.environ['EXPERIMENT_NAME'] if 'EXPERIMENT_NAME' in os.environ else 'misc'
 
+    # override seed if provided
+    if 'SEED' in os.environ:
+        params['seed'] = int(os.environ['SEED'])
+    
     # use uniform weights by default
-    weights = np.array([np.float(weight) for weight in os.environ['WEIGHTS'].split(',')]) if 'WEIGHTS' in os.environ else np.repeat(1., params['N_pools']) / params['N_pools']
-    additional_params['weights'] = weights
+    if 'WEIGHTS' in os.environ:
+        additional_params['weights'] = np.array([float(weight) for weight in os.environ['WEIGHTS'].split(',')])
 
-    CURRENT_TIMESTAMP = datetime.now().strftime("%Y%m%d/%Y%m%d_%H%M%S")
-    OUTPUT_DIRECTORY = os.path.join(f"_output/{exp_name}", CURRENT_TIMESTAMP)
+    CURRENT_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+    OUTPUT_DIRECTORY = os.path.join(f"_output/{exp_name}", f"{CURRENT_TIMESTAMP}__{params['seed']}")
 
     os.environ['RUN_ID'] = CURRENT_TIMESTAMP
     os.environ['OUTPUT_DIRECTORY'] = OUTPUT_DIRECTORY

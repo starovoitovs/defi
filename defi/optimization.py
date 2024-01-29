@@ -3,7 +3,7 @@ import os
 import time
 
 import numpy as np
-
+import pandas as pd
 from defi.algorithms import gradient_descent
 from defi.returns import generate_market
 from defi.utils import get_var_cvar_empcdf, compute_returns
@@ -57,8 +57,11 @@ def optimize(params):
     np.save(os.path.join(os.environ['OUTPUT_DIRECTORY'], 'numpy', 'returns.npy'), all_returns)
     np.save(os.path.join(os.environ['OUTPUT_DIRECTORY'], 'numpy', 'metrics.npy'), all_metrics)
 
+    # save best weights
+    idx = np.argmin(all_metrics[:, 1])
+    pd.DataFrame(all_weights[idx]).to_csv(os.path.join(os.environ['OUTPUT_DIRECTORY'], 'weights.csv'), index=False, header=False)
+    
     end_time = time.time() - start_time
     logging.info(f"Successfully finished `test_optimize` after {end_time:.3f} seconds.")
 
     return all_weights, all_returns, all_metrics
-

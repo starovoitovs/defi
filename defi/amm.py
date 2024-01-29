@@ -218,7 +218,7 @@ class amm():
         y_to_swap = np.zeros()
         y_burn = np.sum(y)
         for i in range(len(self.Rx)):
-            y_quote = np.zeros()
+            y_quote = np.zeros((len(self.Rx),))
             y_quote[i] = y_burn
             quote = self.swap_y_to_x(y_quote, quote=True)
             if quote > max_quote:

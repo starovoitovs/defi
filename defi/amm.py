@@ -213,7 +213,19 @@ class amm():
             l = np.array(l)
 
         x_burn, y = self.burn(l)
-        x_swap = self.swap_y_to_x(y)
+        
+        max_quote = 0
+        y_to_swap = np.zeros()
+        y_burn = np.sum(y)
+        for i in range(len(self.Rx)):
+            y_quote = np.zeros()
+            y_quote[i] = y_burn
+            quote = self.swap_y_to_x(y_quote, quote=True)
+            if quote > max_quote:
+                max_quote = quote
+                y_to_swap = y_quote
+        
+        x_swap = self.swap_y_to_x(y_to_swap)
 
         return x_burn + x_swap
 

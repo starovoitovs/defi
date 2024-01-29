@@ -3,7 +3,6 @@ import torch
 
 
 def gradient_descent(xs, ys, rxs, rys, phis, params, **kwargs):
-
     dtype = torch.float
     device = torch.device("cpu")
 
@@ -21,7 +20,6 @@ def gradient_descent(xs, ys, rxs, rys, phis, params, **kwargs):
     log_x0 = np.log(params['x_0'])
 
     for t in range(params['N_iterations_gd']):
-
         x_burn_t = xs_t @ (weights_t / w0_t) / torch.sum(weights_t)
         y_burn_t = ys_t @ (weights_t / w0_t) / torch.sum(weights_t)
         x_swap_t = y_burn_t * (1 - phi_t) * rxs_t / (rys_t + (1 - phi_t) * y_burn_t)

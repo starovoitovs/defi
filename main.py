@@ -14,7 +14,7 @@ sns.set_theme(style="ticks")
 
 additional_params = {
     # number of iteratations for the "iteration" (refinement) loop
-    'N_iterations_refinement': 20,
+    'N_iterations_main': 20,
     # learning rate of the gradient descent
     'learning_rate_gd': 1e-2,
     # number of iterations for gradient descent

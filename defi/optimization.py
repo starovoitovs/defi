@@ -32,7 +32,7 @@ def optimize(params):
 
     logging.info(np.array([cvar_actual, empcdf, *weights]))
 
-    for i in range(params['N_iterations_refinement']):
+    for i in range(params['N_iterations_main']):
 
         weights, cvar_algorithm = gradient_descent(xs, ys, rxs, rys, phis, {**params, 'weights': weights})
 

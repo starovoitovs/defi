@@ -58,7 +58,7 @@
     ],
     "T": 60,
     "seed": 4294967159,
-    "N_iterations_refinement": 20,
+    "N_iterations_main": 20,
     "learning_rate_gd": 0.01,
     "N_iterations_gd": 2000,
     "loss_weights_gd": [

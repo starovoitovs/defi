@@ -47,9 +47,9 @@ Output for each run within experiment is written into the directory `_output/[ex
 * `weights.csv` - best weights.
 
 The file `numpy/metrics.npy` contains an array with 3 columns, which correspond to:
-* `CVaR_algorithm` -- objective of the algorithm which is usually not the actual CVaR due to market impact after different allocation.
-* `CVaR_actual` -- actual CVaR for the given weights.
-* `ecdf` -- empirical CDF `P(r ≥ ζ)` for the given returns, which in the end is supposed to exceed `q=0.8`.
+* `CVaR_algorithm` - objective of the algorithm which is usually not the actual CVaR due to market impact after different allocation.
+* `CVaR_actual` - actual CVaR for the given weights.
+* `ecdf` - empirical CDF `P(r ≥ ζ)` for the given returns for `ζ=0.05`, which in the end is supposed to exceed `q=0.8`.
 
 # Plotting
 

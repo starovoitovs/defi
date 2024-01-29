@@ -23,7 +23,7 @@ In both cases, the parameters correspond to:
 
 # Output
 
-Each run within experiment is written in the directory `_output/[experiment_name]/[timestamp]_[seed]`. The structure of the output directory is:
+Output for each run within experiment is written into the directory `_output/[experiment_name]/[timestamp]_[seed]`. The structure of the output directory is as follows:
 
     my_experiment
     ├── 20240129_232736__4294967143
@@ -39,6 +39,11 @@ Each run within experiment is written in the directory `_output/[experiment_name
 * `log.log` - contains among other things training output.
 * `params.json` - dump of the parameters used for the run.
 * `weights.csv` - best weights.
+
+The file `numpy/metrics.npy` contains an array with 3 columns, which correspond to:
+* `CVaR_algorithm` -- objective of the algorithm which is usually not the actual CVaR due to market impact after different allocation.
+* `CVaR_actual` -- actual CVaR for the given weights.
+* `ecdf` -- empirical CDF `P(r ≥ ζ)` for the given returns, which in the end is supposed to exceed `q=0.8`.
 
 # Plotting
 

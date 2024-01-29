@@ -28,14 +28,20 @@ additional_params = {
     # initial weights used for generation of returns
     # 'weights': np.repeat(1., params['N_pools']) / params['N_pools'], # uniform
     # 'weights': [0.01, 0.5, 0.3, 0.14, 0.04, 0.01], # good guess
-    'weights': [0.001, 0.001, 0.001, 0.001, 0.001, 0.995], # bad guess
+    # 'weights': [0.001, 0.001, 0.001, 0.001, 0.001, 0.995], # bad guess
 }
 
 
 if __name__ == '__main__':
 
+    exp_name = os.environ['EXPERIMENT_NAME'] if 'EXPERIMENT_NAME' in os.environ else 'experiment'
+
+    # use uniform weights by default
+    weights = np.array([np.float(weight) for weight in os.environ['WEIGHTS'].split(',')]) if 'WEIGHTS' in os.environ else np.repeat(1., params['N_pools']) / params['N_pools']
+    additional_params['weights'] = weights
+
     CURRENT_TIMESTAMP = datetime.now().strftime("%Y%m%d/%Y%m%d_%H%M%S")
-    OUTPUT_DIRECTORY = os.path.join(f"_output/runs", CURRENT_TIMESTAMP)
+    OUTPUT_DIRECTORY = os.path.join(f"_output/{exp_name}", CURRENT_TIMESTAMP)
 
     os.environ['RUN_ID'] = CURRENT_TIMESTAMP
     os.environ['OUTPUT_DIRECTORY'] = OUTPUT_DIRECTORY

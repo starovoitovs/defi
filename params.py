@@ -37,7 +37,7 @@ additional_params = {
     # minimum weight to ensure that we never put 0 coins in a pool
     'weight_eps': 1e-4,
     # initial weights used for generation of returns
-    'weights': np.repeat(1., params['N_pools']) / params['N_pools'],
-    # 'weights': [0.001, 0.332, 0.332, 0.332, 0.001, 0.001], # good guess
+    # 'weights': np.repeat(1., params['N_pools']) / params['N_pools'],
+    'weights': [0.001, 0.332, 0.332, 0.332, 0.002, 0.001], # good guess
     # 'weights': [0.001, 0.001, 0.001, 0.001, 0.001, 0.995], # bad guess
 }

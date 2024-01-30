@@ -26,7 +26,7 @@ You can run several experiments in parallel as follows:
 In both cases, the parameters correspond to:
 
 * `experiment_name` - directory in `_output` where the results are going to be written. Defaults to `misc`. 
-* `weights` - initial weights. Comma-separated non-negative floats without SPACE adding up to 1, for example `WEIGHTS=0.1,0.1,0.1,0.1,0.1,0.5`. Defaults to `1/N_pools` for each pool.
+* `weights` - initial weights. Comma-separated non-negative floats without SPACE adding up to 1, for example `WEIGHTS=0.1,0.1,0.1,0.1,0.1,0.5`. Defaults to `[0.001, 0.332, 0.332, 0.332, 0.001, 0.001]`.
 * `seed` - seed used in a single run. Defaults to the value in `params.py`.
 * `n_seeds` - number of seeds used in the parallel run. Will generate output from `seed=4294967143` to `seed=4294967143+[n_seeds]-1`. Required.
 

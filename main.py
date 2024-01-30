@@ -18,14 +18,14 @@ additional_params = {
     # learning rate of the gradient descent
     'learning_rate_gd': 1e-2,
     # number of iterations for gradient descent
-    'N_iterations_gd': 2000,
+    'N_iterations_gd': 1000,
     # loss weights in gradient descent
     'loss_weights_gd': [1e1, 1., 1., 1.],
     # minimum weight to ensure that we never put 0 coins in a pool
     'weight_eps': 1e-4,
     # initial weights used for generation of returns
     'weights': np.repeat(1., params['N_pools']) / params['N_pools'],
-    # 'weights': [0.01, 0.5, 0.3, 0.14, 0.04, 0.01], # good guess
+    # 'weights': [0.001, 0.332, 0.332, 0.332, 0.001, 0.001], # good guess
     # 'weights': [0.001, 0.001, 0.001, 0.001, 0.001, 0.995], # bad guess
 }
 

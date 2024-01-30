@@ -2,8 +2,10 @@ This is the code for the [SIAM/FME Code Quest 2023](https://sites.google.com/vie
 
 # Parameters
 
-* `params.py` - original parameters from the challenge.
-* `main.py` - contains `additional_params` object with custom parameters.
+Located in `params.py`.
+
+* `params` - original parameters from the challenge.
+* `additional_params` - object with custom parameters.
 
 # Tests
 

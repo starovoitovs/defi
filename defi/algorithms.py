@@ -29,7 +29,6 @@ def gradient_descent(xs, ys, rxs, rys, phis, params, **kwargs):
         cvar = torch.mean(-portfolio_returns_t[-portfolio_returns_t >= qtl])
 
         # chance constraint
-        # loss0 = torch.square(torch.relu(params['zeta'] - torch.quantile(portfolio_returns_t, 1 - params['q'])))
         loss0 = torch.relu(params['q'] - torch.mean(torch.sigmoid(1000 * (portfolio_returns_t - params['zeta'])))) ** 2
 
         # ensure that weights not negative

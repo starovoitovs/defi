@@ -21,7 +21,7 @@ You can run a single experiment as follows:
 
 You can run several experiments in parallel as follows:
 
-    N_SEEDS=[n_seeds] EXPERIMENT_NAME=[experiment_name] WEIGHTS=[0.1,0.1,0.1,0.1,0.1,0.5] ./optimize.sh
+    N_SEEDS=[n_seeds] EXPERIMENT_NAME=[experiment_name] WEIGHTS=[weights] ./optimize.sh
 
 In both cases, the parameters correspond to:
 
